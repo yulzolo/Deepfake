@@ -25,7 +25,7 @@ DETECTOR_CHECKPOINT = "checkpoints/detector_v3.pt"
 WORK_DIR = FACEFUSION_DIR / "bot_workdir"
 MAX_FILE_SIZE = 20 * 1024 * 1024
 PROCESS_TIMEOUT = 60 * 15
-AGREEMENT_FILE = WORK_DIR / "agreed_users.json"
+AGREEMENT_FILE = Path(__file__).parent / "agreed_users.json"
 
 # ============================================================
 # ========================= БОТ И ОЧЕРЕДЬ ====================
