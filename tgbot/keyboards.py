@@ -20,7 +20,6 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
 
 
 def get_swap_options_keyboard(selected: Set[str] = None) -> ReplyKeyboardMarkup:
-    """Клавиатура выбора опций для Face Swap."""
     if selected is None:
         selected = set()
     builder = ReplyKeyboardBuilder()
