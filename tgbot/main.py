@@ -1,17 +1,8 @@
-"""
-Точка входа: диспетчер, модели задач, воркер очереди,
-запуск FaceFusion и Deepfake Detector.
-"""
 import asyncio
 import json
 import logging
 import re
-import uuid
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Optional
-
 from aiogram import Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import FSInputFile
@@ -29,10 +20,8 @@ from config import (
     task_queue,
 )
 from handlers import router
+from models import TaskType, BotTask, ProcessResult
 
-# ============================================================
-# ========================= ЛОГИ =============================
-# ============================================================
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -41,75 +30,6 @@ logger = logging.getLogger(__name__)
 
 WORK_DIR.mkdir(parents=True, exist_ok=True)
 
-# ============================================================
-# ========================= МОДЕЛИ ===========================
-# ============================================================
-class TaskType(Enum):
-    FACESWAP = "faceswap"
-    DETECT = "detect"
-
-
-@dataclass
-class BotTask:
-    user_id: int
-    chat_id: int
-    task_type: TaskType
-    source_path: Optional[Path]
-    target_path: Path
-    output_path: Path
-    is_video: bool
-    processors: list = None
-
-
-@dataclass
-class ProcessResult:
-    success: bool
-    output_path: Optional[Path]
-    error_message: Optional[str]
-    stdout: str
-    stderr: str
-
-
-def user_str(user_id: int) -> str:
-    return f"user_{user_id}"
-
-
-def make_task(
-    user_id: int,
-    chat_id: int,
-    task_type: TaskType,
-    source_path: Optional[Path],
-    target_path: Path,
-    is_video: bool,
-    processors: list = None,
-) -> BotTask:
-    task_id = uuid.uuid4().hex[:8]
-    if task_type == TaskType.FACESWAP:
-        ext = ".mp4" if is_video else ".jpg"
-        output_path = WORK_DIR / user_str(user_id) / f"faceswap_{task_id}{ext}"
-    else:
-        output_path = WORK_DIR / user_str(user_id) / f"detect_{task_id}.txt"
-
-    if processors is None:
-        processors = ["face_swapper"]
-    elif "face_swapper" not in processors:
-        processors = ["face_swapper"] + processors
-
-    return BotTask(
-        user_id=user_id,
-        chat_id=chat_id,
-        task_type=task_type,
-        source_path=source_path,
-        target_path=target_path,
-        output_path=output_path,
-        is_video=is_video,
-        processors=processors,
-    )
-
-
-# ============================================================
-# ====================== FACEFUSION ==========================
-# ============================================================
 async def run_facefusion(
     source_path: Path, target_path: Path, output_path: Path, processors: list
 ) -> ProcessResult:
@@ -171,9 +91,6 @@ async def run_facefusion(
         return ProcessResult(False, None, str(e), "", "")
 
 
-# ============================================================
-# ====================== DETECTOR ============================
-# ============================================================
 async def run_deepfake_detector(target_path: Path, output_path: Path) -> ProcessResult:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     checkpoint_full = str(DETECTOR_DIR / DETECTOR_CHECKPOINT)
@@ -242,9 +159,22 @@ def parse_detector_output(stdout: str) -> tuple:
     return is_deepfake, confidence, text
 
 
-# ============================================================
-# ========================= ВОКЕР ============================
-# ============================================================
+def _delete_files(paths: list):
+    """Безопасно удаляет список файлов."""
+    for path in paths:
+        if not path:
+            continue
+        try:
+            p = Path(path)
+            if p.exists():
+                p.unlink(missing_ok=True)
+                logger.info("Удалён файл: %s", p)
+        except PermissionError:
+            logger.warning(f"Файл заблокирован системой и не может быть удален: {path}")
+        except Exception as e:
+            logger.warning(f"Не удалось удалить файл {path}: {e}")
+
+
 async def process_task(task: BotTask):
     if task_queue.qsize() > 0:
         await bot.send_message(
@@ -265,8 +195,12 @@ async def process_task(task: BotTask):
                 photo=FSInputFile(result.output_path),
                 caption="Готово!",
             )
+            _delete_files([task.source_path, task.target_path, task.output_path])
         else:
             await status_msg.edit_text(f"Ошибка генерации:\n{result.error_message}")
+            _delete_files([task.source_path, task.target_path])
+            if task.output_path.exists():
+                _delete_files([task.output_path])
     else:
         result = await run_deepfake_detector(task.target_path, task.output_path)
         if result.success:
@@ -278,8 +212,12 @@ async def process_task(task: BotTask):
                 f"{details}"
             )
             await status_msg.edit_text(response)
+            _delete_files([task.target_path, task.output_path])
         else:
             await status_msg.edit_text(f"Ошибка проверки:\n{result.error_message}")
+            _delete_files([task.target_path])
+            if task.output_path.exists():
+                _delete_files([task.output_path])
 
 
 async def worker_loop():
@@ -298,9 +236,6 @@ async def worker_loop():
             task_queue.task_done()
 
 
-# ============================================================
-# ========================= ЗАПУСК ===========================
-# ============================================================
 async def main():
     logger.info("Загружено %d пользователей, принявших соглашение", len(agreed_users))
     logger.info("Рабочая папка: %s", WORK_DIR)
