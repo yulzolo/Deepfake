@@ -1,6 +1,3 @@
-"""
-Все клавиатуры бота.
-"""
 from typing import Set
 
 from aiogram.types import (
