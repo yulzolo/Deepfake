@@ -1,10 +1,6 @@
-"""
-Все хендлеры бота, собранные в Router.
-"""
 import random
 import uuid
 from pathlib import Path
-
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -30,16 +26,10 @@ from keyboards import (
     get_swap_options_keyboard,
 )
 
-# Импорты из main (модели и создание задач) — отложенные, чтобы избежать циклов
-# Реально используются внутри хендлеров, к моменту вызова main уже загружен.
-from main import TaskType, make_task, user_str
+from models import TaskType, make_task, user_str
 
 router = Router()
 
-
-# ============================================================
-# ======================= /start и соглашение ================
-# ============================================================
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
@@ -81,9 +71,6 @@ async def decline_agreement(callback: CallbackQuery):
     )
 
 
-# ============================================================
-# ========================== /cancel =========================
-# ============================================================
 @router.message(Command("cancel"))
 @router.message(F.text == "Отмена")
 async def cmd_cancel(message: Message, state: FSMContext):
@@ -100,9 +87,6 @@ async def cmd_cancel(message: Message, state: FSMContext):
     )
 
 
-# ============================================================
-# ====================== FACE SWAP ===========================
-# ============================================================
 @router.message(F.text == "Face Swap")
 @router.message(Command("swap"))
 async def cmd_swap(message: Message, state: FSMContext):
@@ -139,7 +123,6 @@ async def on_option_toggle(message: Message, state: FSMContext):
     }
     text = message.text
 
-    # Сброс
     if text == "🔄 Сбросить всё":
         selected = set()
         await state.update_data(selected_processors=selected)
@@ -156,7 +139,6 @@ async def on_option_toggle(message: Message, state: FSMContext):
             await message.answer(new_text, reply_markup=get_swap_options_keyboard(selected))
         return
 
-    # Запуск
     if text == "▶️ Запустить обработку":
         final_processors = ["face_swapper"] + list(selected)
         await state.update_data(selected_processors=selected)
@@ -169,7 +151,6 @@ async def on_option_toggle(message: Message, state: FSMContext):
         )
         return
 
-    # Переключение опции
     for display_name, processor in processor_map.items():
         if display_name in text:
             if processor in selected:
@@ -180,7 +161,7 @@ async def on_option_toggle(message: Message, state: FSMContext):
 
     await state.update_data(selected_processors=selected)
     phrase = random.choice(ACK_PHRASES)
-    new_text = f"{phrase}\n\n⚙️ Выберите дополнительные опции:"
+    new_text = f"{phrase}\n\n️ Выберите дополнительные опции:"
 
     try:
         await message.bot.edit_message_text(
@@ -259,9 +240,6 @@ async def on_target_wrong(message: Message):
     await message.answer("Отправьте именно фото.")
 
 
-# ============================================================
-# ====================== CHECK DEEPFAKE ======================
-# ============================================================
 @router.message(F.text == "Check Deepfake")
 @router.message(Command("check"))
 async def cmd_check(message: Message, state: FSMContext):
@@ -308,9 +286,6 @@ async def on_check_wrong(message: Message):
     await message.answer("Отправьте именно фото.")
 
 
-# ============================================================
-# ========================= ОСТАЛЬНОЕ ========================
-# ============================================================
 @router.message()
 async def handle_other(message: Message, state: FSMContext):
     if not is_user_agreed(message.from_user.id):
