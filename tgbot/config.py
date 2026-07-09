@@ -1,19 +1,12 @@
-"""
-Конфигурация, тексты, FSM-состояния, хранилище пользователей, бот и очередь.
-"""
 import asyncio
 import json
 from pathlib import Path
-
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
 
-# ============================================================
-# ========================= НАСТРОЙКИ ========================
-# ============================================================
-BOT_TOKEN = "СЮДА_ТВОЙ_ТОКЕН"
+BOT_TOKEN = "TOKEN"
 
 FACEFUSION_DIR = Path(r"C:\Users\user\Documents\facefusion")
 FACEFUSION_PYTHON = r"C:\ProgramData\anaconda3\envs\facefusion\python.exe"
@@ -22,20 +15,15 @@ DETECTOR_DIR = Path(r"C:\Study\detector")
 DETECTOR_PYTHON = r"C:\ProgramData\anaconda3\envs\detector\python.exe"
 DETECTOR_CHECKPOINT = "checkpoints/detector_v3.pt"
 
-WORK_DIR = FACEFUSION_DIR / "bot_workdir"
+WORK_DIR = Path(__file__).parent / "bot_workdir"
 MAX_FILE_SIZE = 20 * 1024 * 1024
 PROCESS_TIMEOUT = 60 * 15
+
 AGREEMENT_FILE = Path(__file__).parent / "agreed_users.json"
 
-# ============================================================
-# ========================= БОТ И ОЧЕРЕДЬ ====================
-# ============================================================
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 task_queue: asyncio.Queue = asyncio.Queue()
 
-# ============================================================
-# ========================== ТЕКСТЫ ==========================
-# ============================================================
 WELCOME_TEXT = """
 Привет! Я AI-помощник по работе с лицами.
 
@@ -88,14 +76,11 @@ ACK_PHRASES = [
     "Хорошо 👍",
     "Записал 🖊",
     "Ок 🆗",
-    "Принято 🫡",
+    "Принято ",
     "Есть 🫡",
     "Зафиксировал 📌",
 ]
 
-# ============================================================
-# ======================= FSM СОСТОЯНИЯ ======================
-# ============================================================
 class SwapStates(StatesGroup):
     waiting_options = State()
     waiting_source = State()
@@ -105,9 +90,6 @@ class SwapStates(StatesGroup):
 class CheckStates(StatesGroup):
     waiting_photo = State()
 
-# ============================================================
-# ============= ХРАНИЛИЩЕ ПОЛЬЗОВАТЕЛЕЙ (ФАЙЛ) ==============
-# ============================================================
 def load_agreed_users() -> set:
     if AGREEMENT_FILE.exists():
         try:
