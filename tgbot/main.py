@@ -160,7 +160,6 @@ def parse_detector_output(stdout: str) -> tuple:
 
 
 def _delete_files(paths: list):
-    """Безопасно удаляет список файлов."""
     for path in paths:
         if not path:
             continue
